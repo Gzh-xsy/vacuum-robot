@@ -1,0 +1,11 @@
+<launch>
+  <arg name="world" default="$(find-pkg-share gazebo_ros)/worlds/empty.world"/>
+  <executable cmd="gazebo $(var world)" output="screen"/>
+  <node name="robot_state_publisher" pkg="robot_state_publisher" exec="robot_state_publisher" output="screen">
+    <param name="robot_description" from="$(find-pkg-share vacuum_description)/urdf/vacuum.urdf"/>
+  </node>
+  <node name="spawn_entity" pkg="gazebo_ros" exec="spawn_entity.py"
+        args="-file $(find-pkg-share vacuum_description)/urdf/vacuum.urdf -entity vacuum -x 0 -y 0 -z 0.05" output="screen"/>
+  <node name="teleop" pkg="teleop_twist_keyboard" exec="teleop_twist_keyboard"
+        args="--ros-args -r cmd_vel:=cmd_vel" output="screen"/>
+</launch>

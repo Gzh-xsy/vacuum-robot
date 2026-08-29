@@ -1,0 +1,184 @@
+<?xml version="1.0"?>
+<!--
+  vacuum.urdf.xacro — Robot vacuum, 349mm round body, diff drive, 2D LiDAR.
+  Frames follow REP-103: x forward, y left, z up.
+  base_link origin at floor plane center; base_footprint planar frame.
+-->
+<robot name="vacuum" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!-- ============ Macro: wheels (used twice) ============ -->
+  <xacro:macro name="vacuum_wheel" params="prefix x y">
+    <link name="${prefix}_wheel">
+      <visual>
+        <geometry><cylinder radius="0.033" length="0.030"/></geometry>
+        <origin rpy="0 ${pi/2} 0" xyz="0 0 0"/>
+        <material name="black"/>
+      </visual>
+      <collision>
+        <geometry><cylinder radius="0.033" length="0.030"/></geometry>
+        <origin rpy="0 ${pi/2} 0" xyz="0 0 0"/>
+      </collision>
+    </link>
+    <joint name="${prefix}_wheel_joint" type="continuous">
+      <parent link="base_link"/>
+      <child link="${prefix}_wheel"/>
+      <origin xyz="${x} ${y} 0.033" rpy="0 0 0"/>
+      <axis xyz="0 1 0"/>
+    </joint>
+  </xacro:macro>
+
+  <!-- ============ Base footprint ============ -->
+  <link name="base_footprint"/>
+  <joint name="base_footprint_joint" type="fixed">
+    <parent link="base_footprint"/>
+    <child link="base_link"/>
+    <origin xyz="0 0 0.02" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ============ Body: 349mm round, ~60mm tall ============ -->
+  <link name="base_link">
+    <visual>
+      <geometry><cylinder radius="0.1745" length="0.060"/></geometry>
+      <origin rpy="0 0 0" xyz="0 0 0.03"/>
+      <material name="body"/>
+    </visual>
+    <collision>
+      <geometry><cylinder radius="0.1745" length="0.060"/></geometry>
+      <origin rpy="0 0 0" xyz="0 0 0.03"/>
+    </collision>
+    <inertial>
+      <mass value="3.0"/>
+      <inertia ixx="0.02" iyy="0.02" izz="0.03" ixy="0.0" ixz="0.0" iyz="0.0"/>
+      <origin xyz="0 0 0.03"/>
+    </inertial>
+  </link>
+
+  <!-- ============ Drive wheels (x = +/-0.12 front-back, y = +/-0.15) ============ -->
+  <xacro:vacuum_wheel prefix="left"  x="0.0"  y="0.15"/>
+  <xacro:vacuum_wheel prefix="right" x="0.0"  y="-0.15"/>
+
+  <!-- Caster (free spinning, just a sphere for sim contact) -->
+  <link name="caster_wheel">
+    <visual>
+      <geometry><sphere radius="0.02"/></geometry>
+      <origin rpy="0 0 0" xyz="0 0 0.02"/>
+      <material name="black"/>
+    </visual>
+    <collision>
+      <geometry><sphere radius="0.02"/></geometry>
+      <origin rpy="0 0 0" xyz="0 0 0.02"/>
+    </collision>
+  </link>
+  <joint name="caster_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="caster_wheel"/>
+    <origin xyz="-0.12 0 0.0" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ============ 2D LiDAR on top (base_scan) ============ -->
+  <link name="base_scan">
+    <visual>
+      <geometry><cylinder radius="0.02" length="0.02"/></geometry>
+      <origin rpy="0 0 0" xyz="0 0 0.01"/>
+      <material name="lidar"/>
+    </visual>
+  </link>
+  <joint name="base_scan_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="base_scan"/>
+    <origin xyz="0 0 0.09" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ============ Cliff / bumper placeholders (visual only, sim contacts later) ============ -->
+  <link name="bumper_front"/>
+  <joint name="bumper_front_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="bumper_front"/>
+    <origin xyz="0.15 0 0.02" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ============ Gazebo plugins ============ -->
+  <gazebo reference="base_link">
+    <material>Gazebo/DarkGrey</material>
+    <mu1>0.8</mu1>
+    <mu2>0.8</mu2>
+  </gazebo>
+  <gazebo reference="left_wheel">
+    <mu1>1.0</mu1>
+    <mu2>1.0</mu2>
+  </gazebo>
+  <gazebo reference="right_wheel">
+    <mu1>1.0</mu1>
+    <mu2>1.0</mu2>
+  </gazebo>
+
+  <!-- Diff drive: /cmd_vel -> wheels -->
+  <gazebo>
+    <plugin name="diff_drive" filename="libgazebo_ros_diff_drive.so">
+      <ros>
+        <remapping>cmd_vel:=cmd_vel</remapping>
+        <remapping>odom:=odom</remapping>
+      </ros>
+      <update_rate>50</update_rate>
+      <left_joint>left_wheel_joint</left_joint>
+      <right_joint>right_wheel_joint</right_joint>
+      <wheel_separation>0.30</wheel_separation>
+      <wheel_diameter>0.066</wheel_diameter>
+      <max_wheel_torque>20</max_wheel_torque>
+      <max_wheel_acceleration>1.0</max_wheel_acceleration>
+      <command_topic>cmd_vel</command_topic>
+      <publish_odom>true</publish_odom>
+      <publish_odom_tf>true</publish_odom_tf>
+      <odometry_frame>odom</odometry_frame>
+      <robot_base_frame>base_footprint</robot_base_frame>
+    </plugin>
+  </gazebo>
+
+  <!-- Ray sensor: simulated LiDAR -> /scan -->
+  <gazebo reference="base_scan">
+    <sensor type="ray" name="lds">
+      <pose>0 0 0 0 0 0</pose>
+      <visualize>true</visualize>
+      <update_rate>10</update_rate>
+      <ray>
+        <scan>
+          <horizontal>
+            <samples>360</samples>
+            <resolution>1</resolution>
+            <min_angle>-3.14159</min_angle>
+            <max_angle>3.14159</max_angle>
+          </horizontal>
+        </scan>
+        <range>
+          <min>0.12</min>
+          <max>8.0</max>
+          <resolution>0.01</resolution>
+        </range>
+        <noise>
+          <type>gaussian</type>
+          <mean>0.0</mean>
+          <stddev>0.01</stddev>
+        </noise>
+      </ray>
+      <plugin name="lidar_scan" filename="libgazebo_ros_ray_sensor.so">
+        <ros>
+          <remapping>scan:=scan</remapping>
+        </ros>
+        <output_type>sensor_msgs/LaserScan</output_type>
+        <frame_name>base_scan</frame_name>
+      </plugin>
+    </sensor>
+  </gazebo>
+
+  <!-- ============ Materials ============ -->
+  <material name="black">
+    <color rgba="0.1 0.1 0.1 1.0"/>
+  </material>
+  <material name="body">
+    <color rgba="0.4 0.5 0.6 1.0"/>
+  </material>
+  <material name="lidar">
+    <color rgba="0.9 0.2 0.2 1.0"/>
+  </material>
+
+</robot>
